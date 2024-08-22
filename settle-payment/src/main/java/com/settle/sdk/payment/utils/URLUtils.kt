@@ -7,7 +7,9 @@ object URLUtils {
     private val allowedUrls = listOf(
         "account.settle.club",
         "account.uat.potleex0.de",
-        "account.sit.potleex0.de"
+        "account.sit.potleex0.de",
+        "l.uat.potleex0.de",
+        "l.sit.potleex0.de"
     )
 
     private const val HTTPS = "https"

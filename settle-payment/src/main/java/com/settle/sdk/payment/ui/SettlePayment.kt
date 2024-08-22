@@ -3,6 +3,7 @@ package com.settle.sdk.payment.ui
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Dialog
+import android.content.Context
 import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.os.Build
@@ -24,11 +25,11 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commit
 import androidx.fragment.app.setFragmentResultListener
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.settle.sdk.payment.R
 import com.settle.sdk.payment.permissions.PermissionHandlerFragment
 import com.settle.sdk.payment.permissions.PermissionType
 import com.settle.sdk.payment.utils.URLUtils
-import java.lang.ref.WeakReference
 
 class SettlePayment : DialogFragment() {
 
@@ -38,9 +39,7 @@ class SettlePayment : DialogFragment() {
     private var locationOrigin: String? = null
     private var locationCallback: GeolocationPermissions.Callback? = null
     private var cameraRequest: PermissionRequest? = null
-    private var paymentCallbackReference: WeakReference<PaymentCallback?>? = null
-    private val paymentCallback: PaymentCallback?
-        get() = paymentCallbackReference?.get()
+    private var paymentCallback: PaymentCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,7 +75,14 @@ class SettlePayment : DialogFragment() {
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        return Dialog(requireContext(), R.style.FullScreenDialogStyle).apply {
+        return object : Dialog(requireContext(), R.style.FullScreenDialogStyle) {
+            // Using deprecated onBackPressed since dialog opens in a new window
+            // More info: https://issuetracker.google.com/issues/149173280
+            @Deprecated("Deprecated in Java")
+            override fun onBackPressed() {
+                showPaymentConfirmationDialog()
+            }
+        }.apply {
             val window = window ?: return@apply
             if (!isFullScreen) {
                 window.attributes = window.attributes?.apply {
@@ -93,13 +99,39 @@ class SettlePayment : DialogFragment() {
     }
 
     override fun onCancel(dialog: DialogInterface) {
-        super.onCancel(dialog)
-        paymentCallback?.onError()
+        dismissDialog(isSuccess = false)
     }
 
     override fun onStart() {
         super.onStart()
         dialog?.window?.setWindowAnimations(R.style.dialog_animation_fade)
+    }
+
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        paymentCallback = try {
+            when {
+                parentFragment is PaymentCallback -> parentFragment as PaymentCallback
+                context is PaymentCallback -> context
+                else -> null
+            }
+        } catch (e: ClassCastException) {
+            null
+        }
+    }
+
+    private fun showPaymentConfirmationDialog() {
+        MaterialAlertDialogBuilder(
+            requireContext(),
+            R.style.AlertDialogTheme
+        ).setTitle(getString(R.string.exit_confirmation_title))
+            .setMessage(getString(R.string.exit_continue_subtitle))
+            .setNegativeButton(getString(R.string.exit_action)) { _, _ ->
+                // Dismiss the payment dialog and communicate back to the merchant app
+                dismissDialog(isSuccess = false)
+            }.setPositiveButton(getString(R.string.continue_action)) { _, _ ->
+                // Do Nothing
+            }.show()
     }
 
     private fun setupFragmentResultListener() {
@@ -158,18 +190,29 @@ class SettlePayment : DialogFragment() {
             object {
                 @JavascriptInterface
                 fun onTransactionSuccess(params: String) {
-                    paymentCallback?.onSuccess()
-                    dismiss()
+                    activity?.runOnUiThread {
+                        dismissDialog(isSuccess = true)
+                    }
                 }
 
                 @JavascriptInterface
                 fun onTransactionFailure(params: String) {
-                    paymentCallback?.onError()
-                    dismiss()
+                    activity?.runOnUiThread {
+                        dismissDialog(isSuccess = false)
+                    }
                 }
             },
             SETTLE_ANDROID_KIT
         )
+    }
+
+    private fun dismissDialog(isSuccess: Boolean) {
+        if (isSuccess) {
+            paymentCallback?.onSuccess()
+        } else {
+            paymentCallback?.onError()
+        }
+        dismiss()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -276,8 +319,6 @@ class SettlePayment : DialogFragment() {
             if (paymentUrl.isNullOrBlank()) return
 
             return SettlePayment().apply {
-                this.paymentCallbackReference = WeakReference(paymentCallback)
-
                 arguments = Bundle().apply {
                     putBoolean(IS_FULL_SCREEN, isFullScreen)
                     putString(PAYMENT_URL, paymentUrl)

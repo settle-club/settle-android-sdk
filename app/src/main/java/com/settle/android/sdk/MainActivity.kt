@@ -10,7 +10,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.settle.sdk.payment.ui.PaymentCallback
 import com.settle.sdk.payment.ui.SettlePayment
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), PaymentCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -25,17 +25,16 @@ class MainActivity : AppCompatActivity() {
             SettlePayment.open(
                 fragmentManager = supportFragmentManager,
                 paymentUrl = "",
-                paymentCallback = object : PaymentCallback {
-                    override fun onSuccess() {
-                        Toast.makeText(this@MainActivity, "onSuccess", Toast.LENGTH_LONG).show()
-                    }
-
-                    override fun onError() {
-                        Toast.makeText(this@MainActivity, "onError", Toast.LENGTH_LONG).show()
-                    }
-                },
                 isFullScreen = false
             )
         }
+    }
+
+    override fun onSuccess() {
+        Toast.makeText(this@MainActivity, "onSuccess", Toast.LENGTH_LONG).show()
+    }
+
+    override fun onError() {
+        Toast.makeText(this@MainActivity, "onError", Toast.LENGTH_LONG).show()
     }
 }
