@@ -26,7 +26,9 @@ import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.commit
 import androidx.fragment.app.setFragmentResultListener
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.gson.Gson
 import com.settle.sdk.payment.R
+import com.settle.sdk.payment.data.PaymentSuccessResponse
 import com.settle.sdk.payment.permissions.PermissionHandlerFragment
 import com.settle.sdk.payment.permissions.PermissionType
 import com.settle.sdk.payment.utils.URLUtils
@@ -39,7 +41,7 @@ class SettlePayment : DialogFragment() {
     private var locationOrigin: String? = null
     private var locationCallback: GeolocationPermissions.Callback? = null
     private var cameraRequest: PermissionRequest? = null
-    private var paymentCallback: PaymentCallback? = null
+    private var settlePaymentCallback: SettlePaymentCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,10 +111,10 @@ class SettlePayment : DialogFragment() {
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        paymentCallback = try {
+        settlePaymentCallback = try {
             when {
-                parentFragment is PaymentCallback -> parentFragment as PaymentCallback
-                context is PaymentCallback -> context
+                parentFragment is SettlePaymentCallback -> parentFragment as SettlePaymentCallback
+                context is SettlePaymentCallback -> context
                 else -> null
             }
         } catch (e: ClassCastException) {
@@ -189,16 +191,31 @@ class SettlePayment : DialogFragment() {
         webView?.addJavascriptInterface(
             object {
                 @JavascriptInterface
-                fun onTransactionSuccess(params: String) {
+                fun onTransactionSuccess(params: String?) {
                     activity?.runOnUiThread {
-                        dismissDialog(isSuccess = true)
+                        val paymentSuccessResponse = try {
+                            if (!params.isNullOrBlank()) {
+                                Gson().fromJson(
+                                    params,
+                                    PaymentSuccessResponse::class.java
+                                )
+                            } else {
+                                null
+                            }
+                        } catch (throwable: Throwable) {
+                            null
+                        }
+                        dismissDialog(
+                            isSuccess = true,
+                            paymentSuccessResponse = paymentSuccessResponse
+                        )
                     }
                 }
 
                 @JavascriptInterface
-                fun onTransactionFailure(params: String) {
+                fun onTransactionFailure(params: String?) {
                     activity?.runOnUiThread {
-                        dismissDialog(isSuccess = false)
+                        dismissDialog(isSuccess = false, error = params)
                     }
                 }
             },
@@ -206,11 +223,15 @@ class SettlePayment : DialogFragment() {
         )
     }
 
-    private fun dismissDialog(isSuccess: Boolean) {
+    private fun dismissDialog(
+        isSuccess: Boolean,
+        paymentSuccessResponse: PaymentSuccessResponse? = null,
+        error: String? = null
+    ) {
         if (isSuccess) {
-            paymentCallback?.onSuccess()
+            settlePaymentCallback?.onSuccess(paymentSuccessResponse = paymentSuccessResponse)
         } else {
-            paymentCallback?.onError()
+            settlePaymentCallback?.onError(error = error)
         }
         dismiss()
     }
@@ -312,16 +333,14 @@ class SettlePayment : DialogFragment() {
         @JvmStatic
         fun open(
             fragmentManager: FragmentManager,
-            paymentUrl: String? = null,
-            paymentCallback: PaymentCallback? = null,
-            isFullScreen: Boolean = false
+            settlePaymentOptions: SettlePaymentOptions
         ) {
-            if (paymentUrl.isNullOrBlank()) return
+            if (settlePaymentOptions.paymentUrl.isBlank()) return
 
             return SettlePayment().apply {
                 arguments = Bundle().apply {
-                    putBoolean(IS_FULL_SCREEN, isFullScreen)
-                    putString(PAYMENT_URL, paymentUrl)
+                    putBoolean(IS_FULL_SCREEN, settlePaymentOptions.isFullScreen)
+                    putString(PAYMENT_URL, settlePaymentOptions.paymentUrl)
                 }
             }.show(fragmentManager, SettlePayment::class.simpleName)
         }

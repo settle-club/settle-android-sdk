@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.junit.ktx)
     implementation(libs.androidx.webkit)
+    implementation(libs.gson)
     testImplementation(libs.robolectric)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

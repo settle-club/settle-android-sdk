@@ -7,10 +7,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.settle.sdk.payment.ui.PaymentCallback
+import com.settle.sdk.payment.data.PaymentSuccessResponse
 import com.settle.sdk.payment.ui.SettlePayment
+import com.settle.sdk.payment.ui.SettlePaymentCallback
+import com.settle.sdk.payment.ui.SettlePaymentOptions
 
-class MainActivity : AppCompatActivity(), PaymentCallback {
+class MainActivity : AppCompatActivity(), SettlePaymentCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -24,17 +26,16 @@ class MainActivity : AppCompatActivity(), PaymentCallback {
         findViewById<Button>(R.id.start).setOnClickListener {
             SettlePayment.open(
                 fragmentManager = supportFragmentManager,
-                paymentUrl = "",
-                isFullScreen = false
+                SettlePaymentOptions(paymentUrl = "", isFullScreen = false)
             )
         }
     }
 
-    override fun onSuccess() {
+    override fun onSuccess(paymentSuccessResponse: PaymentSuccessResponse?) {
         Toast.makeText(this@MainActivity, "onSuccess", Toast.LENGTH_LONG).show()
     }
 
-    override fun onError() {
+    override fun onError(error: String?) {
         Toast.makeText(this@MainActivity, "onError", Toast.LENGTH_LONG).show()
     }
 }
