@@ -39,6 +39,15 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    publishing {
+        publishing {
+            singleVariant("release") {
+                withSourcesJar()
+                withJavadocJar()
+            }
+        }
+    }
 }
 
 dependencies {
@@ -55,4 +64,18 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+}
+
+publishing {
+    publications {
+        create("release", MavenPublication::class) {
+            groupId = "com.settle.android.sdk"
+            artifactId = "settle-payment"
+            version = "0.0.1"
+
+            afterEvaluate {
+                from(components["release"])
+            }
+        }
+    }
 }
