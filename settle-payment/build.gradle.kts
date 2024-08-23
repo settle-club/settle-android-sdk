@@ -66,15 +66,18 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 }
 
-publishing {
-    publications {
-        create("release", MavenPublication::class) {
-            groupId = "com.settle.android.sdk"
-            artifactId = "settle-payment"
-            version = "0.0.1"
-
-            afterEvaluate {
+afterEvaluate {
+    publishing {
+        publications {
+            // Creates a Maven publication called "release".
+            create<MavenPublication>("release") {
+                // Applies the component for the release build variant.
                 from(components["release"])
+
+                // You can then customize attributes of the publication as shown below.
+                groupId = "com.settle.android.sdk"
+                artifactId = "settle-payment"
+                version = "0.0.1"
             }
         }
     }
