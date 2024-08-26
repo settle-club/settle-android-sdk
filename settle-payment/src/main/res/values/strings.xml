@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="exit_confirmation_title">Are you sure you want to exit?</string>
+    <string name="exit_continue_subtitle">You will be taken back to the app</string>
+    <string name="exit_action">Yes, exit</string>
+    <string name="continue_action">Continue to payment</string>
+</resources>
