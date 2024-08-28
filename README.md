@@ -25,15 +25,7 @@ Add the following `Gradle dependency` to your app's `build.gradle` file:
 
 To create an order and generate a payment URL, please refer
 to [this documentation](https://merchant.settle.club/help/docs/developer-guide/api-reference/customer/createTransaction),
-where you can find detailed information about the request and response.
-
-The createTransaction response schema is as follows:
-
-| Field         | Type     | Description                                                             |
-|---------------|----------|-------------------------------------------------------------------------|
-| `redirectUrl` | `string` | URL to which the user should be redirected to complete the transaction. |
-| `message`     | `string` | A message or information related to the transaction.                    |
-| `userStatus`  | `string` | Represents the status of the user for transaction eligibility.          
+where you can find detailed information about the request and response. 
 
 ## 💰 Initiate Payment
 
