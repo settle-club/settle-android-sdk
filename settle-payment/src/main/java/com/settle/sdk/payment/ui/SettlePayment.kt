@@ -38,9 +38,6 @@ class SettlePayment : DialogFragment() {
     private var isFullScreen: Boolean = false
     private var paymentUrl: String = ""
     private var webView: WebView? = null
-    private var locationOrigin: String? = null
-    private var locationCallback: GeolocationPermissions.Callback? = null
-    private var cameraRequest: PermissionRequest? = null
     private var settlePaymentCallback: SettlePaymentCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -156,18 +153,12 @@ class SettlePayment : DialogFragment() {
                 bundle.getBoolean(PermissionHandlerFragment.RESULT_PERMISSION_GRANTED_KEY)
 
             when (permissionType) {
-                PermissionType.Camera -> {
-                    if (permissionGranted) {
-                        cameraRequest?.grant(cameraRequest?.resources)
-                    } else {
-                        cameraRequest?.deny()
-                    }
-                    cameraRequest = null
-                }
+                PermissionType.Camera,
                 PermissionType.Location -> {
-                    locationCallback?.invoke(locationOrigin, permissionGranted, false)
-                    locationCallback = null
-                    locationOrigin = null
+                    processJSPermission(
+                        permissionType = permissionType,
+                        permissionGranted = permissionGranted
+                    )
                 }
                 null -> {
                     // Do nothing
@@ -185,55 +176,6 @@ class SettlePayment : DialogFragment() {
         if (URLUtils.validateURL(paymentUrl)) {
             webView?.loadUrl(paymentUrl)
         }
-    }
-
-    private fun addJSInterface() {
-        webView?.addJavascriptInterface(
-            object {
-                @JavascriptInterface
-                fun onTransactionSuccess(params: String?) {
-                    activity?.runOnUiThread {
-                        val paymentSuccessResponse = try {
-                            if (!params.isNullOrBlank()) {
-                                Gson().fromJson(
-                                    params,
-                                    PaymentSuccessResponse::class.java
-                                )
-                            } else {
-                                null
-                            }
-                        } catch (throwable: Throwable) {
-                            null
-                        }
-                        dismissDialog(
-                            isSuccess = true,
-                            paymentSuccessResponse = paymentSuccessResponse
-                        )
-                    }
-                }
-
-                @JavascriptInterface
-                fun onTransactionFailure(params: String?) {
-                    activity?.runOnUiThread {
-                        dismissDialog(isSuccess = false, error = params)
-                    }
-                }
-            },
-            SETTLE_ANDROID_KIT
-        )
-    }
-
-    private fun dismissDialog(
-        isSuccess: Boolean,
-        paymentSuccessResponse: PaymentSuccessResponse? = null,
-        error: String? = null
-    ) {
-        if (isSuccess) {
-            settlePaymentCallback?.onSuccess(paymentSuccessResponse = paymentSuccessResponse)
-        } else {
-            settlePaymentCallback?.onError(error = error)
-        }
-        dismiss()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -287,12 +229,142 @@ class SettlePayment : DialogFragment() {
                 } else {
                     // Ask for location permission or redirect the user to application settings
                     // to grant the required permissions
-                    locationOrigin = origin
-                    locationCallback = callback
                     askLocationPermission()
                 }
             }
         }
+    }
+
+    private fun addWebViewClient() {
+        webView?.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): Boolean {
+                // Handle URL redirection here
+                return super.shouldOverrideUrlLoading(view, request)
+            }
+        }
+    }
+
+    private fun addJSInterface() {
+        webView?.addJavascriptInterface(
+            object {
+                // Used to grant location permission to the webview
+                @JavascriptInterface
+                fun getLocationPermission(params: String) {
+                    if (ContextCompat.checkSelfPermission(
+                            requireContext(),
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED &&
+                        ContextCompat.checkSelfPermission(
+                            requireContext(),
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        // Grant location permission
+                        processJSPermission(
+                            permissionType = PermissionType.Location,
+                            permissionGranted = true
+                        )
+                    } else {
+                        // Ask for location permission or redirect the user to application settings
+                        // to grant the required permissions
+                        askLocationPermission()
+                    }
+                }
+
+                // Used to grant camera permission to the webview
+                @JavascriptInterface
+                fun getCameraPermission(params: String) {
+                    if (ContextCompat.checkSelfPermission(
+                            requireContext(),
+                            Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                    ) {
+                        // Grant camera permission
+                        processJSPermission(
+                            permissionType = PermissionType.Camera,
+                            permissionGranted = true
+                        )
+                    } else {
+                        // Ask for camera permission or redirect the user to application settings
+                        // to grant the required permissions
+                        askCameraPermission()
+                    }
+                }
+
+                @JavascriptInterface
+                fun onTransactionSuccess(params: String?) {
+                    activity?.runOnUiThread {
+                        val paymentSuccessResponse = try {
+                            if (!params.isNullOrBlank()) {
+                                Gson().fromJson(
+                                    params,
+                                    PaymentSuccessResponse::class.java
+                                )
+                            } else {
+                                null
+                            }
+                        } catch (throwable: Throwable) {
+                            null
+                        }
+                        dismissDialog(
+                            isSuccess = true,
+                            paymentSuccessResponse = paymentSuccessResponse
+                        )
+                    }
+                }
+
+                @JavascriptInterface
+                fun onTransactionFailure(params: String?) {
+                    activity?.runOnUiThread {
+                        dismissDialog(isSuccess = false, error = params)
+                    }
+                }
+            },
+            SETTLE_ANDROID_KIT
+        )
+    }
+
+    private fun processJSPermission(
+        permissionType: PermissionType,
+        permissionGranted: Boolean,
+    ) {
+        when (permissionType) {
+            PermissionType.Camera,
+            PermissionType.Location -> {
+                invokeJavascriptPermission(
+                    permissionType = permissionType,
+                    permissionGranted = permissionGranted
+                )
+            }
+        }
+    }
+
+    private fun invokeJavascriptPermission(
+        permissionType: PermissionType,
+        permissionGranted: Boolean,
+    ) {
+        activity?.runOnUiThread {
+            val permissionName = permissionType.name
+            val javascriptCode =
+                "window.processPermission(${permissionGranted}, '${permissionName}');"
+            webView?.evaluateJavascript(javascriptCode, null)
+        }
+    }
+
+    private fun dismissDialog(
+        isSuccess: Boolean,
+        paymentSuccessResponse: PaymentSuccessResponse? = null,
+        error: String? = null
+    ) {
+        if (isSuccess) {
+            settlePaymentCallback?.onSuccess(paymentSuccessResponse = paymentSuccessResponse)
+        } else {
+            settlePaymentCallback?.onError(error = error)
+        }
+        dismiss()
     }
 
     private fun askCameraPermission() {
@@ -309,18 +381,6 @@ class SettlePayment : DialogFragment() {
                 fragment,
                 PermissionHandlerFragment::class.simpleName
             )
-        }
-    }
-
-    private fun addWebViewClient() {
-        webView?.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(
-                view: WebView?,
-                request: WebResourceRequest?,
-            ): Boolean {
-                // Handle URL redirection here
-                return super.shouldOverrideUrlLoading(view, request)
-            }
         }
     }
 
